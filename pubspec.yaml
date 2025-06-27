@@ -1,0 +1,19 @@
+name: epub_reader_app
+description: A cross-platform EPUB reader with reading progress sync.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^3.14.0
+  firebase_auth: ^5.6.0
+  cloud_firestore: ^5.6.9
+  epub_view: ^3.2.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sample.epub
