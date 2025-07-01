@@ -22,6 +22,6 @@ class FirestoreService {
         .doc(bookId)
         .get();
 
-    return doc.exists ? doc.data()?['cfi'] as String? : null;
+    return doc.exists ? (doc.data()?['cfi'] as String?) : null;
   }
 }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:epub_view/epub_view.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:http/http.dart' as http;
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 void main() {
   runApp(const MyApp());
@@ -37,10 +40,19 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   }
 
   Future<void> _initEpub() async {
-    final bytes = await rootBundle.load('assets/BloodMeridian.epub');
+    Uint8List epubBytes;
+    if (kIsWeb) {
+      // Fetch from public/assets on web
+      final response = await http.get(Uri.parse('/assets/BloodMeridian.epub'));
+      epubBytes = response.bodyBytes;
+    } else {
+      // Use rootBundle for mobile/desktop
+      final bytes = await rootBundle.load('assets/BloodMeridian.epub');
+      epubBytes = bytes.buffer.asUint8List();
+    }
     setState(() {
       _epubController = EpubController(
-        document: EpubReader.readBook(bytes.buffer.asUint8List()),
+        document: EpubReader.readBook(epubBytes),
       );
       _isLoading = false;
     });

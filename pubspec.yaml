@@ -12,8 +12,10 @@ dependencies:
   cloud_firestore: ^5.6.9
   firebase_auth: ^5.6.0
   epub_view: ^3.2.0
+  http: ^1.4.0
 
 flutter:
   uses-material-design: true
   assets:
     - assets/BloodMeridian.epub
+
