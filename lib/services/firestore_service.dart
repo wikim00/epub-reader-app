@@ -3,25 +3,39 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class FirestoreService {
   static final _firestore = FirebaseFirestore.instance;
-  static final _user = FirebaseAuth.instance.currentUser;
 
-  static Future<void> saveLocation(String bookId, String cfi) async {
+  static User? get _user => FirebaseAuth.instance.currentUser;
+
+  // Save chapter index as integer
+  static Future<void> saveLocation(String bookId, int chapterIndex) async {
+    final user = _user;
+    if (user == null) return;
     await _firestore
         .collection('users')
-        .doc(_user!.uid)
+        .doc(user.uid)
         .collection('books')
         .doc(bookId)
-        .set({'cfi': cfi, 'updatedAt': FieldValue.serverTimestamp()});
+        .set({
+      'chapterIndex': chapterIndex,
+      'updatedAt': FieldValue.serverTimestamp()
+    });
   }
 
-  static Future<String?> getLastLocation(String bookId) async {
+  // Get last chapter index as integer
+  static Future<int?> getLastLocation(String bookId) async {
+    final user = _user;
+    if (user == null) return null;
     final doc = await _firestore
         .collection('users')
-        .doc(_user!.uid)
+        .doc(user.uid)
         .collection('books')
         .doc(bookId)
         .get();
 
-    return doc.exists ? doc.data()?['cfi'] as String? : null;
+    if (doc.exists) {
+      final data = doc.data();
+      return data?['chapterIndex'] as int?;
+    }
+    return null;
   }
 }

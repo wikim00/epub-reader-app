@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:epub_view/epub_view.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'services/firestore_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -29,6 +30,7 @@ class EpubReaderPage extends StatefulWidget {
 class _EpubReaderPageState extends State<EpubReaderPage> {
   EpubController? _epubController;
   bool _isLoading = true;
+  final String _bookId = 'BloodMeridian';
 
   @override
   void initState() {
@@ -38,12 +40,33 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
   Future<void> _initEpub() async {
     final bytes = await rootBundle.load('assets/BloodMeridian.epub');
+    final lastChapterIndex = await FirestoreService.getLastLocation(_bookId);
+    print('Loaded lastChapterIndex: $lastChapterIndex');
+
+    final controller = EpubController(
+      document: EpubReader.readBook(bytes.buffer.asUint8List()),
+    );
+
+    controller.currentValueListenable.addListener(() {
+      final locator = controller.currentValueListenable.value;
+      final chapterIndex = locator?.chapter?.index;
+      print('Saving chapterIndex: $chapterIndex');
+      if (chapterIndex != null) {
+        FirestoreService.saveLocation(_bookId, chapterIndex);
+      }
+    });
+
     setState(() {
-      _epubController = EpubController(
-        document: EpubReader.readBook(bytes.buffer.asUint8List()),
-      );
+      _epubController = controller;
       _isLoading = false;
     });
+
+    if (lastChapterIndex != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('Going to chapter: $lastChapterIndex');
+        controller.gotoChapter(lastChapterIndex);
+      });
+    }
   }
 
   @override
