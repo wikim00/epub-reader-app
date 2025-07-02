@@ -40,32 +40,50 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   // These IDs identify user and book in Firestore (customize as needed)
   final String _userId = 'user123';
   final String _bookId = 'BloodMeridian';
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _loadBook();
+
+    // Auto-save progress on scroll
+    _scrollController.addListener(() {
+      _saveProgress(_currentChapterIndex);
+    });
   }
 
   Future<void> _loadBook() async {
     try {
-      // Load epub file bytes from assets
-      ByteData data = await rootBundle.load('assets/BloodMeridian.epub');
-      Uint8List bytes = data.buffer.asUint8List();
+      final data = await rootBundle.load('assets/BloodMeridian.epub');
+      final book = await EpubReader.readBook(data.buffer.asUint8List());
 
-      // Parse the book
-      final book = await EpubReader.readBook(bytes);
+      // Load saved progress from Firestore
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_userId)
+          .collection('reading_progress')
+          .doc(_bookId)
+          .get();
+
+      int savedChapter = 0;
+      double savedOffset = 0.0;
+
+      if (doc.exists) {
+        final data = doc.data();
+        savedChapter = data?['chapterIndex'] ?? 0;
+        savedOffset = (data?['scrollOffset'] ?? 0).toDouble();
+      }
 
       setState(() {
         _book = book;
+        _currentChapterIndex = savedChapter;
       });
 
-      int? savedIndex = await _loadProgress();
-      if (savedIndex != null && savedIndex < (book.Chapters?.length ?? 0)) {
-        setState(() {
-          _currentChapterIndex = savedIndex;
-        });
-      }
+      // Delay scroll until after layout
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollController.jumpTo(savedOffset);
+      });
     } catch (e) {
       print('Error loading book: $e');
     }
@@ -92,18 +110,17 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     return null;
   }
 
-  Future<void> _saveProgress(int chapterIndex) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_userId)
-          .collection('reading_progress')
-          .doc(_bookId)
-          .set({'chapterIndex': chapterIndex});
-      print('Saved progress: chapter $chapterIndex');
-    } catch (e) {
-      print('Failed to save progress: $e');
-    }
+  void _saveProgress(int chapterIndex) {
+    final offset = _scrollController.offset;
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(_userId)
+        .collection('reading_progress')
+        .doc(_bookId)
+        .set({
+      'chapterIndex': chapterIndex,
+      'scrollOffset': offset,
+    });
   }
 
   void _nextChapter() {
@@ -144,6 +161,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         title: Text(chapterTitle),
       ),
       body: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         child: SelectableText(
           // Basic HTML tags will be shown raw, for better formatting consider flutter_html package
