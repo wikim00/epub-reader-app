@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:epubz/epubz.dart';
@@ -36,6 +36,8 @@ class EpubReaderPage extends StatefulWidget {
 class _EpubReaderPageState extends State<EpubReaderPage> {
   EpubBook? _book;
   int _currentChapterIndex = 0;
+  Timer? _debounceTimer;
+  final Duration _debounceDuration = Duration(seconds: 2);
 
   // These IDs identify user and book in Firestore (customize as needed)
   final String _userId = 'user123';
@@ -47,9 +49,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     super.initState();
     _loadBook();
 
-    // Auto-save progress on scroll
     _scrollController.addListener(() {
-      _saveProgress(_currentChapterIndex);
+      _onScrollChanged(_scrollController.offset);
     });
   }
 
@@ -110,16 +111,16 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     return null;
   }
 
-  void _saveProgress(int chapterIndex) {
-    final offset = _scrollController.offset;
-    FirebaseFirestore.instance
+  Future<void> _saveProgress(int chapterIndex, double scrollOffset) async {
+    await FirebaseFirestore.instance
         .collection('users')
         .doc(_userId)
         .collection('reading_progress')
         .doc(_bookId)
         .set({
       'chapterIndex': chapterIndex,
-      'scrollOffset': offset,
+      'scrollOffset': scrollOffset,
+      'updated_at': FieldValue.serverTimestamp(),
     });
   }
 
@@ -129,7 +130,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       setState(() {
         _currentChapterIndex++;
       });
-      _saveProgress(_currentChapterIndex);
+      _saveProgress(
+          _currentChapterIndex, 0.0); // Reset scroll on chapter change
     }
   }
 
@@ -139,8 +141,24 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       setState(() {
         _currentChapterIndex--;
       });
-      _saveProgress(_currentChapterIndex);
+      _saveProgress(
+          _currentChapterIndex, 0.0); // Reset scroll on chapter change
     }
+  }
+
+  void _onScrollChanged(double offset) {
+    if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
+
+    _debounceTimer = Timer(_debounceDuration, () {
+      _saveProgress(_currentChapterIndex, offset);
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _debounceTimer?.cancel();
+    super.dispose();
   }
 
   @override
