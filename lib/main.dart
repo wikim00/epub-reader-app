@@ -212,12 +212,31 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     final chapterText = chapter.HtmlContent ?? '[No content]';
 
     return Scaffold(
-      appBar: AppBar(title: Text(chapterTitle)),
+      appBar: AppBar(
+        title: Text(chapterTitle),
+        actions: [
+          if (FirebaseAuth.instance.currentUser?.photoURL != null &&
+              FirebaseAuth.instance.currentUser!.photoURL!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: CircleAvatar(
+                backgroundImage:
+                    NetworkImage(FirebaseAuth.instance.currentUser!.photoURL!),
+              ),
+            ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign out',
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         controller: _scrollController,
         padding: const EdgeInsets.all(16),
         child: SelectableText(
-          // Basic HTML tags will be shown raw, for better formatting consider flutter_html package
           chapterText.replaceAll(RegExp(r'<[^>]*>'), ''),
           style: const TextStyle(fontSize: 16),
         ),
