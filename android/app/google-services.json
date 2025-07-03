@@ -12,7 +12,20 @@
           "package_name": "com.example.epub_reader"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1058580536468-i588027rpla2e07bslspbtsec2d2951k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.epub_reader",
+            "certificate_hash": "bf5d45151d0b12885beae8bfc16a1a3a6a6b1f79"
+          }
+        },
+        {
+          "client_id": "1058580536468-f00pr2i5et0urikf9aa5j5bgfqf75m5u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB3xvpXGnGE2g6bnlQLJZU0A3Tq99NtNdk"
@@ -20,7 +33,41 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1058580536468-f00pr2i5et0urikf9aa5j5bgfqf75m5u.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1058580536468:android:8dab98638f7d7db205e881",
+        "android_client_info": {
+          "package_name": "com.example.epub_reader_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1058580536468-f00pr2i5et0urikf9aa5j5bgfqf75m5u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3xvpXGnGE2g6bnlQLJZU0A3Tq99NtNdk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1058580536468-f00pr2i5et0urikf9aa5j5bgfqf75m5u.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

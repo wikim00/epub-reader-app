@@ -14,6 +14,26 @@
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
   -->
+  <!-- Add inside the <head> tag -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDo6GcLiFux0WnkwI9b0LuxMn4_-z-J1XM",
+      authDomain: "epub-reader-8f1e2.firebaseapp.com",
+      projectId: "epub-reader-8f1e2",
+      storageBucket: "epub-reader-8f1e2.firebasestorage.app",
+      messagingSenderId: "1058580536468",
+      appId: "1:1058580536468:web:1143d70621599b9b05e881",
+      measurementId: "G-5BSLZVCMP9"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    firebase.analytics();
+  </script>
+
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
