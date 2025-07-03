@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart'; // for kIsWeb
 
@@ -28,9 +28,24 @@ class LoginPage extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Signed in with Google!')),
       );
+      onLoginSuccess();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Google sign-in failed: $e')),
+      );
+    }
+  }
+
+  Future<void> signInAnonymously(BuildContext context) async {
+    try {
+      await FirebaseAuth.instance.signInAnonymously();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed in anonymously!')),
+      );
+      onLoginSuccess();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Anonymous sign-in failed: $e')),
       );
     }
   }
@@ -47,6 +62,12 @@ class LoginPage extends StatelessWidget {
               onPressed: () => signInWithGoogle(context),
               icon: const Icon(Icons.login),
               label: const Text("Sign in with Google"),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => signInAnonymously(context),
+              icon: const Icon(Icons.person_outline),
+              label: const Text("Continue as Guest"),
             ),
             const SizedBox(height: 16),
             ElevatedButton(

@@ -56,29 +56,37 @@ class EpubReaderPage extends StatefulWidget {
 class _EpubReaderPageState extends State<EpubReaderPage> {
   EpubBook? _book;
   int _currentChapterIndex = 0;
+  int _currentPageIndex = 0;
+  List<String> _pages = [];
+  PageController _pageController = PageController();
   Timer? _debounceTimer;
   final Duration _debounceDuration = Duration(seconds: 2);
 
-  // These IDs identify user and book in Firestore (customize as needed)
   final String _bookId = 'BloodMeridian';
   final ScrollController _scrollController = ScrollController();
+
+  List<String> _splitIntoPages(String text, {int maxLength = 1000}) {
+    final cleaned = text.replaceAll(RegExp(r'<[^>]*>'), '');
+    final result = <String>[];
+    for (int i = 0; i < cleaned.length; i += maxLength) {
+      result
+          .add(cleaned.substring(i, (i + maxLength).clamp(0, cleaned.length)));
+    }
+    return result;
+  }
 
   @override
   void initState() {
     super.initState();
     _loadBook();
-
-    _scrollController.addListener(() {
-      _onScrollChanged(_scrollController.offset);
-    });
   }
 
+  @override
   Future<void> _loadBook() async {
     try {
       final data = await rootBundle.load('assets/BloodMeridian.epub');
       final book = await EpubReader.readBook(data.buffer.asUint8List());
 
-      // Load saved progress from Firestore
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.userId)
@@ -87,50 +95,40 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           .get();
 
       int savedChapter = 0;
-      double savedOffset = 0.0;
+      int savedPageIndex = 0;
 
       if (doc.exists) {
         final data = doc.data();
         savedChapter = data?['chapterIndex'] ?? 0;
-        savedOffset = (data?['scrollOffset'] ?? 0).toDouble();
+        savedPageIndex = data?['pageIndex'] ?? 0;
       }
+
+      final chapter = book.Chapters![savedChapter];
 
       setState(() {
         _book = book;
         _currentChapterIndex = savedChapter;
       });
 
-      // Delay scroll until after layout
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollController.jumpTo(savedOffset);
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final size = MediaQuery.of(context).size;
+        final double pageWidth = size.width > 600 ? 600 : size.width;
+        _pages = await paginateText(
+          fullText: chapter.HtmlContent ?? '',
+          style: const TextStyle(fontSize: 16),
+          pageHeight: size.height,
+          pageWidth: pageWidth,
+        );
+        setState(() {
+          _currentPageIndex = savedPageIndex;
+        });
       });
     } catch (e) {
       print('Error loading book: $e');
     }
   }
 
-  Future<int?> _loadProgress() async {
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.userId)
-          .collection('reading_progress')
-          .doc(_bookId)
-          .get();
-
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        if (data['chapterIndex'] != null) {
-          return data['chapterIndex'] as int;
-        }
-      }
-    } catch (e) {
-      print('Error loading progress: $e');
-    }
-    return null;
-  }
-
-  Future<void> _saveProgress(int chapterIndex, double scrollOffset) async {
+  Future<void> _saveProgress(int chapterIndex, int pageIndex) async {
     try {
       await FirebaseFirestore.instance
           .collection('users')
@@ -139,7 +137,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           .doc(_bookId)
           .set({
         'chapterIndex': chapterIndex,
-        'scrollOffset': scrollOffset,
+        'pageIndex': pageIndex,
         'updated_at': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -147,30 +145,38 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     }
   }
 
-  // When scrolling
-  void _onScrollChanged(double offset) {
-    if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
-
-    _debounceTimer = Timer(_debounceDuration, () {
-      _saveProgress(_currentChapterIndex, offset);
-    });
+  void _nextPage() {
+    if (_currentPageIndex < _pages.length - 1) {
+      setState(() {
+        _currentPageIndex++;
+      });
+      _saveProgress(_currentChapterIndex, _currentPageIndex);
+    } else {
+      _nextChapter();
+    }
   }
 
-  // When changing chapters
+  void _prevPage() {
+    if (_currentPageIndex > 0) {
+      setState(() {
+        _currentPageIndex--;
+      });
+      _saveProgress(_currentChapterIndex, _currentPageIndex);
+    } else {
+      _prevChapter();
+    }
+  }
+
   void _nextChapter() {
     if (_book?.Chapters == null) return;
     if (_currentChapterIndex < _book!.Chapters!.length - 1) {
       setState(() {
         _currentChapterIndex++;
+        _pages = _splitIntoPages(
+            _book!.Chapters![_currentChapterIndex].HtmlContent ?? '');
+        _currentPageIndex = 0;
       });
-      _saveProgress(_currentChapterIndex, 0.0).then((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Reading progress saved'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      });
+      _saveProgress(_currentChapterIndex, 0);
     }
   }
 
@@ -179,27 +185,29 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     if (_currentChapterIndex > 0) {
       setState(() {
         _currentChapterIndex--;
+        _pages = _splitIntoPages(
+            _book!.Chapters![_currentChapterIndex].HtmlContent ?? '');
+        _currentPageIndex = 0;
       });
-      _saveProgress(_currentChapterIndex, 0.0).then((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Reading progress saved'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      });
+      _saveProgress(_currentChapterIndex, 0);
     }
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _pageController.dispose();
     _debounceTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = Theme.of(context).platform == TargetPlatform.macOS ||
+        Theme.of(context).platform == TargetPlatform.windows ||
+        Theme.of(context).platform == TargetPlatform.linux;
+
+    final textStyle = TextStyle(fontSize: isDesktop ? 20 : 16);
+
     if (_book == null || _book!.Chapters == null || _book!.Chapters!.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Loading EPUB...')),
@@ -207,9 +215,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       );
     }
 
-    final chapter = _book!.Chapters![_currentChapterIndex];
-    final chapterTitle = chapter.Title ?? 'Chapter ${_currentChapterIndex + 1}';
-    final chapterText = chapter.HtmlContent ?? '[No content]';
+    final chapterTitle = _book!.Chapters![_currentChapterIndex].Title ??
+        'Chapter ${_currentChapterIndex + 1}';
 
     return Scaffold(
       appBar: AppBar(
@@ -233,12 +240,33 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(16),
-        child: SelectableText(
-          chapterText.replaceAll(RegExp(r'<[^>]*>'), ''),
-          style: const TextStyle(fontSize: 16),
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (TapUpDetails details) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          final dx = details.localPosition.dx;
+
+          if (dx < screenWidth * 0.3) {
+            _prevPage();
+          } else {
+            _nextPage();
+          }
+        },
+        child: Container(
+          alignment: Alignment.topCenter,
+          width: double.infinity,
+          height: double.infinity,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              alignment: Alignment.topLeft,
+              child: SelectableText(
+                _pages.isNotEmpty ? _pages[_currentPageIndex] : '',
+                style: textStyle,
+              ),
+            ),
+          ),
         ),
       ),
       bottomNavigationBar: BottomAppBar(
@@ -250,7 +278,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
               onPressed: _prevChapter,
             ),
             Text(
-              '${_currentChapterIndex + 1} / ${_book!.Chapters?.length ?? 0}',
+              'Chapter ${_currentChapterIndex + 1} / ${_book!.Chapters?.length ?? 0} - Page ${_currentPageIndex + 1} / ${_pages.length}',
             ),
             IconButton(
               icon: const Icon(Icons.arrow_forward),
@@ -260,5 +288,54 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         ),
       ),
     );
+  }
+
+  Future<List<String>> paginateText({
+    required String fullText,
+    required TextStyle style,
+    required double pageHeight,
+    required double pageWidth,
+    double padding = 16,
+  }) async {
+    final text = fullText.replaceAll(RegExp(r'<[^>]*>'), '');
+    final span = TextSpan(text: text, style: style);
+    final painter = TextPainter(
+      text: span,
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.left,
+    );
+
+    final List<String> pages = [];
+    int start = 0;
+
+    while (start < text.length) {
+      int end = text.length;
+      int low = start;
+      int high = end;
+
+      // Binary search to fit text into height
+      while (low < high) {
+        int mid = (low + high) ~/ 2;
+        final testSpan = TextSpan(
+          text: text.substring(start, mid),
+          style: style,
+        );
+        painter.text = testSpan;
+        painter.layout(maxWidth: pageWidth - padding * 2);
+
+        if (painter.height > pageHeight - padding * 2) {
+          high = mid - 1;
+        } else {
+          low = mid + 1;
+        }
+      }
+
+      int pageEnd = low - 1;
+      if (pageEnd <= start) break; // Prevent infinite loop
+      pages.add(text.substring(start, pageEnd));
+      start = pageEnd;
+    }
+
+    return pages;
   }
 }
